@@ -15,13 +15,29 @@ import GlassCard from '../components/GlassCard';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 
-export default function SignUpScreen({ onBack, onSignIn, onSignUp }) {
+interface SignUpScreenProps {
+  onBack: () => void;
+  onSignIn: () => void;
+  onSignUp: (
+    fullName: string,
+    email: string,
+    password: string,
+    voicePart: string,
+    phone: string
+  ) => void;
+}
+
+type VoicePartType = 'Soprano' | 'Alto' | 'Tenor' | 'Bass';
+
+export default function SignUpScreen({ onBack, onSignIn, onSignUp }: SignUpScreenProps) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [voicePart, setVoicePart] = useState<VoicePartType>('Alto');
   const [password, setPassword] = useState('');
 
   const handleSignUp = () => {
-    onSignUp(fullName, email, password);
+    onSignUp(fullName, email, password, voicePart, phone);
   };
 
   return (
@@ -36,12 +52,13 @@ export default function SignUpScreen({ onBack, onSignIn, onSignUp }) {
       >
         <SafeAreaView style={styles.safeArea}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.keyboardAvoid}
           >
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {/* Back Button */}
               <TouchableOpacity onPress={onBack} style={styles.backButton}>
@@ -62,10 +79,13 @@ export default function SignUpScreen({ onBack, onSignIn, onSignUp }) {
                 {/* Full Name */}
                 <InputField
                   label="Full Name"
+                  iconName="user"
                   placeholder="KAMPIRE Sarah"
                   value={fullName}
                   onChangeText={setFullName}
                   autoCapitalize="words"
+                  autoComplete="name"
+                  textContentType="name"
                 />
 
                 {/* Vocalist Email */}
@@ -76,7 +96,51 @@ export default function SignUpScreen({ onBack, onSignIn, onSignUp }) {
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
+                  autoComplete="email"
+                  textContentType="emailAddress"
                 />
+
+                {/* Phone Number */}
+                <InputField
+                  label="Phone Number"
+                  iconName="phone"
+                  placeholder="+1 (555) 000-0000"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  textContentType="telephoneNumber"
+                />
+
+                {/* Voice Part Segment Control */}
+                <View style={styles.voicePartSection}>
+                  <Text style={styles.inputLabel}>Voice Part</Text>
+                  <View style={styles.voicePartButtonsRow}>
+                    {(['Soprano', 'Alto', 'Tenor', 'Bass'] as VoicePartType[]).map((part) => {
+                      const isSelected = voicePart === part;
+                      return (
+                        <TouchableOpacity
+                          key={part}
+                          onPress={() => setVoicePart(part)}
+                          style={[
+                            styles.voicePartButton,
+                            isSelected && styles.voicePartButtonActive,
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.voicePartButtonText,
+                              isSelected && styles.voicePartButtonTextActive,
+                            ]}
+                          >
+                            {part}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
 
                 {/* Password Input */}
                 <InputField
@@ -86,6 +150,8 @@ export default function SignUpScreen({ onBack, onSignIn, onSignUp }) {
                   secureTextEntry
                   value={password}
                   onChangeText={setPassword}
+                  autoComplete="new-password"
+                  textContentType="password"
                 />
 
                 {/* Enter Studio Button */}
@@ -131,8 +197,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
+    paddingTop: 50,
     paddingBottom: 40,
-    justifyContent: 'center',
   },
   backButton: {
     position: 'absolute',
@@ -176,6 +242,7 @@ const styles = StyleSheet.create({
   },
   card: {
     marginTop: 10,
+    paddingVertical: 24,
   },
   cardTitle: {
     fontFamily: 'Lexend_400Regular',
@@ -183,6 +250,50 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     marginBottom: 24,
+  },
+  voicePartSection: {
+    marginBottom: 20,
+    width: '100%',
+  },
+  inputLabel: {
+    fontFamily: 'Lexend_300Light',
+    fontSize: 14,
+    color: '#ffffff',
+    marginBottom: 8,
+  },
+  voicePartButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  voicePartButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 185, 255, 0.15)',
+    backgroundColor: 'rgba(20, 15, 30, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 3,
+  },
+  voicePartButtonActive: {
+    backgroundColor: '#d9b9ff',
+    borderColor: '#d9b9ff',
+    shadowColor: '#d9b9ff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  voicePartButtonText: {
+    fontFamily: 'Lexend_400Regular',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  voicePartButtonTextActive: {
+    fontFamily: 'Lexend_600SemiBold',
+    color: '#16122b',
   },
   submitButton: {
     marginTop: 12,

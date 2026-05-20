@@ -9,25 +9,28 @@ import {
   ScrollView,
   SafeAreaView,
   ImageBackground,
-  Switch,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import GlassCard from '../components/GlassCard';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 
-export default function LoginScreen({
-  onBack,
-  onForgotPassword,
-  onJoinCantora,
-  onEnterStudio,
-}) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberSession, setRememberSession] = useState(false);
+interface ForgotPasswordScreenProps {
+  onBack: () => void;
+  onSignIn: () => void;
+  onSendResetLink: (email: string) => void;
+}
 
-  const handleEnterStudio = () => {
-    onEnterStudio(email, password, rememberSession);
+export default function ForgotPasswordScreen({ onBack, onSignIn, onSendResetLink }: ForgotPasswordScreenProps) {
+  const [email, setEmail] = useState('');
+
+  const handleSendReset = () => {
+    if (!email) {
+      Alert.alert('Error', 'Please enter your email address.');
+      return;
+    }
+    onSendResetLink(email);
   };
 
   return (
@@ -42,14 +45,15 @@ export default function LoginScreen({
       >
         <SafeAreaView style={styles.safeArea}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.keyboardAvoid}
           >
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
-              {/* Back Button or Header Area */}
+              {/* Back Button */}
               <TouchableOpacity onPress={onBack} style={styles.backButton}>
                 <Text style={styles.backButtonText}>← Back</Text>
               </TouchableOpacity>
@@ -58,12 +62,12 @@ export default function LoginScreen({
               <View style={styles.headerContainer}>
                 <Text style={styles.brandTitle}>CANTORA</Text>
                 <View style={styles.underline} />
-                <Text style={styles.brandSubtitle}>Precision for the Vocalist</Text>
+                <Text style={styles.brandSubtitle}>Regain your account easily</Text>
               </View>
 
-              {/* Welcome Back Glass Card */}
+              {/* Forgot Password Glass Card */}
               <GlassCard style={styles.card}>
-                <Text style={styles.cardTitle}>Welcome Back</Text>
+                <Text style={styles.cardTitle}>Forgot Password</Text>
 
                 {/* Vocalist Email */}
                 <InputField
@@ -73,50 +77,24 @@ export default function LoginScreen({
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
+                  autoComplete="email"
+                  textContentType="emailAddress"
                 />
 
-                {/* Password Input */}
-                <InputField
-                  label="Password"
-                  iconName="lock"
-                  placeholder="••••••••"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                  headerRight={
-                    <TouchableOpacity onPress={onForgotPassword} activeOpacity={0.7}>
-                      <Text style={styles.forgotPasswordText}>Forgot password</Text>
-                    </TouchableOpacity>
-                  }
-                />
-
-                {/* Remember Session Switch */}
-                <View style={styles.rememberContainer}>
-                  <Switch
-                    value={rememberSession}
-                    onValueChange={setRememberSession}
-                    trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#d9b9ff' }}
-                    thumbColor={rememberSession ? '#3a0e63' : '#a599b5'}
-                    ios_backgroundColor="rgba(255, 255, 255, 0.1)"
-                    style={Platform.OS === 'ios' ? styles.iosSwitch : null}
-                  />
-                  <Text style={styles.rememberText}>Remember session</Text>
-                </View>
-
-                {/* Enter Studio Button */}
+                {/* Send Reset Link Button */}
                 <PrimaryButton
-                  title="Enter Studio"
+                  title="Send Reset Link"
                   variant="filled"
                   showChevrons
-                  onPress={handleEnterStudio}
+                  onPress={handleSendReset}
                   style={styles.submitButton}
                 />
 
-                {/* Join Cantora Link */}
+                {/* Sign In Link */}
                 <View style={styles.footerContainer}>
-                  <Text style={styles.footerText}>New to the choir? </Text>
-                  <TouchableOpacity onPress={onJoinCantora} activeOpacity={0.7}>
-                    <Text style={styles.footerLink}>Join Cantora</Text>
+                  <Text style={styles.footerText}>Remember password </Text>
+                  <TouchableOpacity onPress={onSignIn} activeOpacity={0.7}>
+                    <Text style={styles.footerLink}>Sign In</Text>
                   </TouchableOpacity>
                 </View>
               </GlassCard>
@@ -146,8 +124,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
+    paddingTop: 50,
     paddingBottom: 40,
-    justifyContent: 'center',
   },
   backButton: {
     position: 'absolute',
@@ -197,29 +175,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 28,
   },
-  forgotPasswordText: {
-    fontFamily: 'Lexend_400Regular',
-    fontSize: 13,
-    color: '#d9b9ff',
-  },
-  rememberContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 28,
-    marginTop: 8,
-  },
-  rememberText: {
-    fontFamily: 'Lexend_300Light',
-    fontSize: 14,
-    color: '#ffffff',
-    marginLeft: 10,
-  },
-  iosSwitch: {
-    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
-  },
   submitButton: {
-    marginTop: 8,
-    marginBottom: 20,
+    marginTop: 16,
+    marginBottom: 24,
   },
   footerContainer: {
     flexDirection: 'row',

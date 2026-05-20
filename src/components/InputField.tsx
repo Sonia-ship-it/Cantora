@@ -1,6 +1,29 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, View, TouchableOpacity } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  TouchableOpacity,
+  KeyboardTypeOptions,
+  Platform,
+} from 'react-native';
 import { Feather } from '@expo/vector-icons';
+
+interface InputFieldProps {
+  label?: string;
+  headerRight?: React.ReactNode;
+  iconName?: any;
+  placeholder?: string;
+  secureTextEntry?: boolean;
+  value?: string;
+  onChangeText?: (text: string) => void;
+  keyboardType?: KeyboardTypeOptions;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  style?: any;
+  autoComplete?: any;
+  textContentType?: any;
+}
 
 export default function InputField({
   label,
@@ -13,7 +36,9 @@ export default function InputField({
   keyboardType = 'default',
   autoCapitalize = 'none',
   style,
-}) {
+  autoComplete,
+  textContentType,
+}: InputFieldProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
@@ -48,7 +73,7 @@ export default function InputField({
 
         {/* Text Input */}
         <TextInput
-          style={[styles.input, secureTextEntry && styles.inputPassword]}
+          style={[styles.input, secureTextEntry ? styles.inputPassword : null]}
           placeholder={placeholder}
           placeholderTextColor="rgba(217, 185, 255, 0.3)"
           secureTextEntry={shouldSecure}
@@ -56,6 +81,8 @@ export default function InputField({
           onChangeText={onChangeText}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           selectionColor="#d9b9ff"
@@ -99,7 +126,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(20, 15, 30, 0.45)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
     borderColor: 'rgba(217, 185, 255, 0.15)',
     borderRadius: 12,
@@ -108,11 +135,7 @@ const styles = StyleSheet.create({
   },
   inputContainerFocused: {
     borderColor: '#d9b9ff',
-    backgroundColor: 'rgba(20, 15, 30, 0.65)',
-    shadowColor: '#d9b9ff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    backgroundColor: 'rgba(217, 185, 255, 0.08)',
   },
   leftIcon: {
     marginRight: 12,
@@ -120,15 +143,18 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontFamily: 'Lexend_400Regular',
-    fontStyle: 'italic', // To match the italic placeholder style
+    fontStyle: 'italic',
     fontSize: 14,
     color: '#ffffff',
     height: '100%',
+    // Dynamic platform selection casted to any to suppress TypeScript react-native validation
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none',
+      },
+    }) as any,
   },
-  inputPassword: {
-    // Normal text when typing password is not italic, but wait, placeholder can be italic
-    // We can keep it standard
-  },
+  inputPassword: {},
   rightIconContainer: {
     padding: 4,
     marginLeft: 8,

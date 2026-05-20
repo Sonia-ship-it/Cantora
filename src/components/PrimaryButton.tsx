@@ -1,13 +1,21 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+interface PrimaryButtonProps {
+  title: string;
+  variant?: 'filled' | 'outline';
+  showChevrons?: boolean;
+  onPress?: () => void;
+  style?: any;
+}
+
 export default function PrimaryButton({
   title,
   variant = 'filled',
   showChevrons = false,
   onPress,
   style,
-}) {
+}: PrimaryButtonProps) {
   const isFilled = variant === 'filled';
 
   return (

@@ -4,7 +4,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import CantoraLogo from '../components/CantoraLogo';
 import PrimaryButton from '../components/PrimaryButton';
 
-export default function WelcomeScreen({ onGetStarted, onLogin }) {
+interface WelcomeScreenProps {
+  onGetStarted: () => void;
+  onLogin: () => void;
+}
+
+export default function WelcomeScreen({ onGetStarted, onLogin }: WelcomeScreenProps) {
   return (
     <ImageBackground
       source={require('../../assets/microphone_bg.png')}
@@ -71,12 +76,11 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    justifyContent: 'space-between',
     paddingHorizontal: 28,
   },
   topContainer: {
     alignItems: 'center',
-    marginTop: '1%',
+    marginTop: '0%',
   },
   bokehContainer: {
     alignItems: 'center',
@@ -96,7 +100,7 @@ const styles = StyleSheet.create({
     fontSize: 48,
     color: '#d9b9ff',
     letterSpacing: 2,
-    marginBottom: 20,
+    marginBottom: 10,
     textShadowColor: 'rgba(217, 185, 255, 0.4)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 15,
@@ -111,11 +115,13 @@ const styles = StyleSheet.create({
   },
   bottomContainer: {
     alignItems: 'center',
+    marginTop: 'auto',
     marginBottom: '10%',
     width: '100%',
   },
   buttonSpacing: {
     marginBottom: 16,
+    width: '100%',
   },
   footerText: {
     fontFamily: 'Lexend_600SemiBold',

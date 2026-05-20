@@ -1,7 +1,12 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-export default function GlassCard({ children, style }) {
+interface GlassCardProps {
+  children: React.ReactNode;
+  style?: any;
+}
+
+export default function GlassCard({ children, style }: GlassCardProps) {
   return (
     <View style={[styles.card, style]}>
       {children}
