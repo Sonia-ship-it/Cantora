@@ -153,6 +153,9 @@ export default function SignUpScreen({ onBack, onSignIn, onSignUp }: SignUpScree
                   autoComplete="new-password"
                   textContentType="password"
                 />
+                <Text style={styles.helperText}>
+                  Must have 8+ characters, 1 uppercase letter, 1 digit, and 1 special character (@$!%*?&)
+                </Text>
 
                 {/* Enter Studio Button */}
                 <PrimaryButton
@@ -313,5 +316,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend_700Bold',
     fontSize: 14,
     color: '#d9b9ff',
+  },
+  helperText: {
+    fontFamily: 'Lexend_300Light',
+    fontSize: 11,
+    color: 'rgba(217, 185, 255, 0.45)',
+    marginTop: -12,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    lineHeight: 15,
   },
 });

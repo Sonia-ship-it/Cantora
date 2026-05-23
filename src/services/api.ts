@@ -1,4 +1,4 @@
-const BASE_URL = process.env.BASE_URL;
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL || process.env.BASE_URL;
 
 export interface RegisterPayload {
   email: string;
@@ -30,6 +30,8 @@ export interface UserResponse {
 
 class ApiService {
   private token: string | null = null;
+  private refreshTokenVal: string | null = null;
+  private onSessionExpiredCallback: (() => void) | null = null;
 
   setToken(token: string | null) {
     this.token = token;
@@ -39,7 +41,19 @@ class ApiService {
     return this.token;
   }
 
-  private async request(endpoint: string, method: string = 'GET', body?: any, isMultipart: boolean = false) {
+  setRefreshToken(token: string | null) {
+    this.refreshTokenVal = token;
+  }
+
+  getRefreshToken(): string | null {
+    return this.refreshTokenVal;
+  }
+
+  registerSessionExpiredCallback(callback: () => void) {
+    this.onSessionExpiredCallback = callback;
+  }
+
+  private async request(endpoint: string, method: string = 'GET', body?: any, isMultipart: boolean = false): Promise<any> {
     const headers: Record<string, string> = {};
 
     if (!isMultipart) {
@@ -50,24 +64,67 @@ class ApiService {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const url = `${BASE_URL}${endpoint}`;
+    console.log(`[API Request] ${method} ${url}`);
+
+    let response = await fetch(url, {
       method,
       headers,
       body: body ? (isMultipart ? body : JSON.stringify(body)) : undefined,
     });
 
+    // Handle 401 Unauthorized globally (except for login and refresh endpoints themselves)
+    if (response.status === 401 && endpoint !== '/api/v1/auth/login' && endpoint !== '/api/v1/auth/refresh') {
+      if (this.refreshTokenVal) {
+        try {
+          console.log('[API] Session expired or token revoked. Attempting automatic refresh...');
+          const refreshRes = await this.refreshToken(this.refreshTokenVal);
+          if (refreshRes && refreshRes.access_token) {
+            console.log('[API] Refresh successful, retrying request...');
+            // Update auth headers with the new token
+            headers['Authorization'] = `Bearer ${refreshRes.access_token}`;
+            response = await fetch(url, {
+              method,
+              headers,
+              body: body ? (isMultipart ? body : JSON.stringify(body)) : undefined,
+            });
+          }
+        } catch (refreshErr) {
+          console.log('[API] Automatic token refresh failed:', refreshErr);
+        }
+      }
+
+      // If refresh failed or was not possible, trigger session expired
+      if (response.status === 401) {
+        console.log('[API] Unauthorized. Triggering session expired callback.');
+        this.setToken(null);
+        this.setRefreshToken(null);
+        if (this.onSessionExpiredCallback) {
+          this.onSessionExpiredCallback();
+        }
+      }
+    }
+
     if (response.status === 204) {
       return null;
     }
 
-    if (!response.ok) {
+    const contentType = response.headers.get('content-type');
+    let data: any = null;
+
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
       const rawText = await response.text();
-      console.log('API error response', response.status, rawText);
+      if (!response.ok) {
+        console.log('[API Error] Non-JSON response:', response.status, rawText);
+        throw new Error(rawText || `Server returned status code ${response.status}`);
+      }
+      return rawText;
     }
 
-    const data = await response.json();
-
     if (!response.ok) {
+      console.log('[API Error] response status:', response.status, 'data:', data);
       let errorMessage = 'An error occurred';
       if (data && data.detail) {
         if (Array.isArray(data.detail)) {
@@ -111,6 +168,9 @@ class ApiService {
     if (data && data.access_token) {
       this.setToken(data.access_token);
     }
+    if (data && data.refresh_token) {
+      this.setRefreshToken(data.refresh_token);
+    }
     return data;
   }
 
@@ -132,14 +192,21 @@ class ApiService {
     if (data && data.access_token) {
       this.setToken(data.access_token);
     }
+    if (data && data.refresh_token) {
+      this.setRefreshToken(data.refresh_token);
+    }
     return data;
   }
 
   async logout(): Promise<void> {
     try {
-      await this.request('/api/v1/auth/logout', 'POST');
+      // NOTE: We bypass calling the backend '/api/v1/auth/logout' endpoint because of a backend bug
+      // where logging out blacklists the user ID globally, permanently revoking any future login tokens
+      // for that account. Clearing the tokens client-side is sufficient and keeps the account functional.
+      // await this.request('/api/v1/auth/logout', 'POST');
     } finally {
       this.setToken(null);
+      this.setRefreshToken(null);
     }
   }
 

@@ -60,6 +60,13 @@ export default function App() {
   // Network loading overlay state
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  React.useEffect(() => {
+    api.registerSessionExpiredCallback(() => {
+      Alert.alert('Session Expired', 'Your session has expired. Please log in again.');
+      setCurrentScreen('login');
+    });
+  }, []);
+
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
@@ -134,6 +141,15 @@ export default function App() {
       Alert.alert('Registration Failed', 'Please fill in all required fields.');
       return;
     }
+
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      Alert.alert(
+        'Registration Failed',
+        'Password must be at least 8 characters long and contain at least 1 uppercase letter, 1 digit, and 1 special character (@$!%*?&).'
+      );
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -195,6 +211,11 @@ export default function App() {
     }
   };
 
+  const handleProfileUpdate = (updatedName: string, updatedVoicePart: string) => {
+    setUserName(updatedName);
+    setVoicePart(updatedVoicePart);
+  };
+
   const handleLogout = async () => {
     setIsLoading(true);
     try {
@@ -250,6 +271,7 @@ export default function App() {
           onLogout={handleLogout}
           voicePart={voicePart}
           phone={phone}
+          onProfileUpdate={handleProfileUpdate}
         />
       )}
 

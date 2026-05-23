@@ -17,14 +17,16 @@ import ProfileTab from './studio/ProfileTab';
 
 interface StudioDashboardProps {
   user: string;
+  email?: string;
   onLogout: () => void;
   voicePart?: string;
   phone?: string;
+  onProfileUpdate: (updatedName: string, updatedVoicePart: string) => void;
 }
 
 type TabType = 'home' | 'record' | 'music' | 'profile';
 
-export default function StudioDashboard({ user = 'Sarah', onLogout, voicePart, phone }: StudioDashboardProps) {
+export default function StudioDashboard({ user = 'Sarah', email, onLogout, voicePart, phone, onProfileUpdate }: StudioDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>('home');
 
   const renderHeader = (showBack = false, onBackPress?: () => void) => (
@@ -80,6 +82,7 @@ export default function StudioDashboard({ user = 'Sarah', onLogout, voicePart, p
             onLogout={onLogout}
             voicePart={voicePart}
             phone={phone}
+            onProfileUpdate={onProfileUpdate}
           />
         )}
 
