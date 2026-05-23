@@ -333,8 +333,8 @@ class ApiService {
     return this.request(`/api/v1/practice/${sessionId}/ai-plan`, 'GET');
   }
 
-  async completePractice(sessionId: string, data: any): Promise<any> {
-    return this.request(`/api/v1/practice/${sessionId}/complete`, 'PATCH', data);
+  async completePractice(sessionId: string, durationSeconds: number): Promise<any> {
+    return this.request(`/api/v1/practice/${sessionId}/complete?duration_seconds=${durationSeconds}`, 'PATCH');
   }
 
   // ==========================================

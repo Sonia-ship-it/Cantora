@@ -12,6 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import GlassCard from '../../components/GlassCard';
 import { api } from '../../services/api';
 
@@ -21,6 +22,11 @@ export default function MusicTab() {
   const fileInputRef = useRef<any>(null);
   const [subTab, setSubTab] = useState<MusicSubTab>('library');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Upload form state
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadComposer, setUploadComposer] = useState('');
+  const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
 
   // Sheets state
   const [sheets, setSheets] = useState<any[]>([]);
@@ -106,42 +112,89 @@ export default function MusicTab() {
   };
 
   // Upload Logic
-  const handleBrowseFiles = () => {
+  const handleBrowseFiles = async () => {
     if (Platform.OS === 'web' && fileInputRef.current) {
       fileInputRef.current.click();
-    } else {
-      triggerMockUpload();
+      return;
+    }
+
+    // Native: use expo-document-picker
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'image/png',
+          'image/jpeg',
+          'image/jpg',
+          'application/vnd.recordare.musicxml+xml',
+          'application/xml',
+          'text/xml',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const pickedFile = result.assets[0];
+      setSelectedFile(pickedFile);
+
+      // Auto-fill title from filename (without extension) if title is empty
+      if (!uploadTitle.trim()) {
+        const nameWithoutExt = pickedFile.name?.replace(/\.[^.]+$/, '') || 'Untitled';
+        setUploadTitle(nameWithoutExt);
+      }
+    } catch (err: any) {
+      Alert.alert('File Selection Failed', err.message || 'Could not select a file.');
     }
   };
 
-  const triggerMockUpload = async () => {
+  const handleUploadSelected = async () => {
+    if (!uploadTitle.trim()) {
+      Alert.alert('Title Required', 'Please enter a title for the sheet music.');
+      return;
+    }
+
+    if (!selectedFile) {
+      Alert.alert('No File Selected', 'Please select a file first.');
+      return;
+    }
+
     setIsUploading(true);
     try {
-      // package mock form data
-      const mockFormData = new FormData();
-      mockFormData.append('file', {
-        uri: 'file://mock/score.pdf',
-        name: 'score.pdf',
-        type: 'application/pdf',
+      const formData = new FormData();
+
+      // Append the file (React Native style: object with uri, name, type)
+      formData.append('file', {
+        uri: selectedFile.uri,
+        name: selectedFile.name || 'sheet_music.pdf',
+        type: selectedFile.mimeType || 'application/pdf',
       } as any);
 
+      // Append required title field
+      formData.append('title', uploadTitle.trim());
+
+      // Append optional composer field
+      if (uploadComposer.trim()) {
+        formData.append('composer', uploadComposer.trim());
+      }
+
+      const response = await api.uploadSheetMusic(formData);
       Alert.alert(
-        'Upload Score',
-        'Uploading simulated score to OMR endpoint...',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setIsUploading(false);
-              Alert.alert('Upload Processed', 'Backend processed OMR score successfully.');
-              setSubTab('library');
-              fetchSheets();
-            },
-          },
-        ]
+        'Score Uploaded',
+        `Successfully uploaded: "${response.title || uploadTitle}"!`
       );
+
+      // Reset upload form
+      setUploadTitle('');
+      setUploadComposer('');
+      setSelectedFile(null);
+      setSubTab('library');
+      fetchSheets();
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message || 'Check connection to backend.');
+      Alert.alert('Upload Failed', err.message || 'Could not upload score. Check your connection.');
+    } finally {
       setIsUploading(false);
     }
   };
@@ -150,16 +203,29 @@ export default function MusicTab() {
     const file = e.target?.files?.[0];
     if (!file) return;
 
+    // For web, we need a title too. If not provided, use the filename.
+    const title = uploadTitle.trim() || file.name?.replace(/\.[^.]+$/, '') || 'Untitled Score';
+
     setIsUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('title', title);
+
+      if (uploadComposer.trim()) {
+        formData.append('composer', uploadComposer.trim());
+      }
 
       const response = await api.uploadSheetMusic(formData);
       Alert.alert(
         'Score Uploaded',
         `Successfully uploaded score: "${response.title || file.name}"!`
       );
+
+      // Reset upload form
+      setUploadTitle('');
+      setUploadComposer('');
+      setSelectedFile(null);
       setSubTab('library');
       fetchSheets();
     } catch (err: any) {
@@ -445,36 +511,89 @@ export default function MusicTab() {
                 Digitalize paper sheets. Our backend maps vocal ranges and processes OMR tracking.
               </Text>
 
+              {/* Title Input (Required) */}
+              <Text style={styles.inputLabel}>TITLE *</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter score title (e.g. Hallelujah Chorus)"
+                placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                value={uploadTitle}
+                onChangeText={setUploadTitle}
+              />
+
+              {/* Composer Input (Optional) */}
+              <Text style={styles.inputLabel}>COMPOSER (OPTIONAL)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter composer name"
+                placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                value={uploadComposer}
+                onChangeText={setUploadComposer}
+              />
+
               {/* Dashed Drag & Drop Box */}
               <View style={styles.dragDropCard}>
                 {isUploading ? (
                   <ActivityIndicator size="large" color="#d9b9ff" />
+                ) : selectedFile ? (
+                  <View style={{ alignItems: 'center' }}>
+                    <MaterialCommunityIcons name="file-check-outline" size={48} color="#4ade80" />
+                    <Text style={styles.dragDropTitle}>{selectedFile.name || 'File Selected'}</Text>
+                    <Text style={styles.dragDropSubtitle}>
+                      {selectedFile.size ? `${(selectedFile.size / 1024).toFixed(1)} KB` : 'Ready to upload'}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.browseBtn, { marginTop: 10, borderColor: 'rgba(255, 255, 255, 0.3)' }]}
+                      onPress={() => setSelectedFile(null)}
+                    >
+                      <Text style={[styles.browseBtnText, { fontSize: 11, color: 'rgba(255, 255, 255, 0.6)' }]}>Change File</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
-                  <MaterialCommunityIcons name="cloud-upload-outline" size={48} color="#d9b9ff" />
+                  <View style={{ alignItems: 'center' }}>
+                    <MaterialCommunityIcons name="cloud-upload-outline" size={48} color="#d9b9ff" />
+                    <Text style={styles.dragDropTitle}>Select your Score file</Text>
+                    <Text style={styles.dragDropSubtitle}>Supports PDF, JPG, PNG, MusicXML</Text>
+
+                    <View style={styles.orDivider}>
+                      <View style={styles.dividerLine} />
+                      <Text style={styles.orText}>OR</Text>
+                      <View style={styles.dividerLine} />
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.browseBtn}
+                      onPress={handleBrowseFiles}
+                      activeOpacity={0.7}
+                      disabled={isUploading}
+                    >
+                      <Text style={styles.browseBtnText}>Browse Files</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
-                <Text style={styles.dragDropTitle}>
-                  {isUploading ? 'Uploading & Analyzing...' : 'Select your Score file'}
-                </Text>
-                <Text style={styles.dragDropSubtitle}>Supports PDF, JPG, PNG, MusicXML</Text>
+              </View>
 
-                <View style={styles.orDivider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.orText}>OR</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
+              {/* Upload Button - visible when file is selected */}
+              {selectedFile && (
                 <TouchableOpacity
-                  style={styles.browseBtn}
-                  onPress={handleBrowseFiles}
+                  style={styles.uploadSubmitBtn}
+                  onPress={handleUploadSelected}
                   activeOpacity={0.7}
                   disabled={isUploading}
                 >
-                  <Text style={styles.browseBtnText}>Browse Files</Text>
+                  {isUploading ? (
+                    <ActivityIndicator size="small" color="#16122b" />
+                  ) : (
+                    <>
+                      <Feather name="upload-cloud" size={18} color="#16122b" style={{ marginRight: 8 }} />
+                      <Text style={styles.uploadSubmitBtnText}>Upload & Process Score</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
-              </View>
+              )}
 
               {/* Supported Formats */}
-              <Text style={styles.formatsLabel}>SUPPORTED FORMATS</Text>
+              <Text style={[styles.formatsLabel, { marginTop: 20 }]}>SUPPORTED FORMATS</Text>
               <View style={styles.formatsGrid}>
                 {[
                   { name: 'PDF', icon: 'file-pdf-box' as const },
@@ -905,6 +1024,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend_600SemiBold',
     fontSize: 12,
     color: '#ffffff',
+  },
+  uploadSubmitBtn: {
+    height: 48,
+    backgroundColor: '#d9b9ff',
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  uploadSubmitBtnText: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 14,
+    color: '#16122b',
   },
   formatsLabel: {
     fontFamily: 'Lexend_700Bold',

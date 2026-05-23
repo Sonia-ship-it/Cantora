@@ -234,11 +234,8 @@ export default function HomeTab({ onNavigateToUpload, onNavigateToRecord }: Home
   const handleCompletePractice = async (sessionId: string) => {
     setIsLoadingPractice(true);
     try {
-      const data = {
-        notes: 'Completed practice session successfully.',
-        duration_seconds: 600, // mock duration
-      };
-      const res = await api.completePractice(sessionId, data);
+      const durationSeconds = 600; // mock duration
+      const res = await api.completePractice(sessionId, durationSeconds);
       Alert.alert('Practice Completed!', 'Your session has been logged and completed.');
       setActivePracticeSession(null);
       setAiPlan(null);
