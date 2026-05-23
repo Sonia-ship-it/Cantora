@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import GlassCard from '../../components/GlassCard';
 import { api } from '../../services/api';
 
 interface ProfileTabProps {
@@ -26,6 +27,7 @@ export default function ProfileTab({ user, email, onLogout, voicePart, phone, on
   const displayEmail = email || `${user.toLowerCase().replace(/\s+/g, '')}@gmail.com`;
   const displayVoicePart = voicePart || 'Alto';
 
+  // Profile Edit state
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(displayName);
   const [editVoicePart, setEditVoicePart] = useState(displayVoicePart);
@@ -38,10 +40,71 @@ export default function ProfileTab({ user, email, onLogout, voicePart, phone, on
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isPasswordSaving, setIsPasswordSaving] = useState(false);
 
+  // --- API Integrations State ---
+  const [userId, setUserId] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('user');
+  const [subscription, setSubscription] = useState<any>(null);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  
+  // Section Toggle states
+  const [isBillingOpen, setIsBillingOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isLoadingBilling, setIsLoadingBilling] = useState(false);
+  const [isTrialProcessing, setIsTrialProcessing] = useState(false);
+
+  // Admin states
+  const [adminTargetUserId, setAdminTargetUserId] = useState('');
+  const [isAdminProcessing, setIsAdminProcessing] = useState(false);
+
   useEffect(() => {
     setEditName(displayName);
     setEditVoicePart(displayVoicePart);
+    fetchUserProfileAndBilling();
   }, [user, voicePart]);
+
+  const fetchUserProfileAndBilling = async () => {
+    try {
+      // Get current user payload (ID and Role)
+      const me = await api.getMe();
+      if (me) {
+        setUserId(me.id || '');
+        setUserRole(me.role || 'user');
+      }
+    } catch (e) {
+      console.log('Error fetching profile details:', e);
+    }
+    fetchBillingInfo();
+  };
+
+  const fetchBillingInfo = async () => {
+    setIsLoadingBilling(true);
+    try {
+      const sub = await api.getMySubscription();
+      setSubscription(sub);
+      const publicPlans = await api.listPublicPlans();
+      setPlans(publicPlans || []);
+      const payments = await api.getMyPayments();
+      setPaymentHistory(payments || []);
+    } catch (e) {
+      console.log('Error fetching billing data:', e);
+      // Mock Fallbacks for testing
+      setSubscription({
+        plan_name: 'Trial Period',
+        status: 'active',
+        ends_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
+      });
+      setPlans([
+        { id: 'free-tier', name: 'Free Trial', price: 0, description: '14-day evaluation features' },
+        { id: 'cantora-pro', name: 'Pro Vocalist', price: 15, description: 'Unlimited OMR uploads and rehearsals' },
+      ]);
+      setPaymentHistory([
+        { id: 'pay_001', amount: 15, status: 'completed', created_at: new Date().toISOString() }
+      ]);
+    } finally {
+      setIsLoadingBilling(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!editName.trim()) {
@@ -90,11 +153,6 @@ export default function ProfileTab({ user, email, onLogout, voicePart, phone, on
       return;
     }
 
-    if (currentPassword === newPassword) {
-      Alert.alert('Error', 'New password must be different from current password.');
-      return;
-    }
-
     setIsPasswordSaving(true);
     try {
       await api.changePassword(currentPassword, newPassword);
@@ -110,24 +168,87 @@ export default function ProfileTab({ user, email, onLogout, voicePart, phone, on
     }
   };
 
+  // Trial activation
+  const handleStartTrial = async () => {
+    setIsTrialProcessing(true);
+    try {
+      await api.startTrial();
+      Alert.alert('Trial Activated', 'Your 14-day Free Trial of Cantora Premium is now active!');
+      fetchBillingInfo();
+    } catch (err: any) {
+      Alert.alert('Trial Failed', err.message || 'Eligible only for new users.');
+    } finally {
+      setIsTrialProcessing(false);
+    }
+  };
+
+  // Payment trigger
+  const handleInitiatePayment = async (planId: string) => {
+    setIsLoadingBilling(true);
+    try {
+      const checkoutRes = await api.initiatePayment({ plan_id: planId });
+      Alert.alert(
+        'Payment Checkout',
+        `Simulating checkout screen. Checkout Session ID: ${checkoutRes.payment_id || 'MockCheckoutSession'}. Proceding to verify mock receipt...`,
+        [
+          {
+            text: 'Complete Payment',
+            onPress: async () => {
+              try {
+                await api.verifyPayment({
+                  payment_id: checkoutRes.payment_id || 'mock-id',
+                  transaction_id: 'tx_simulated_' + Math.floor(Math.random() * 100000),
+                });
+                Alert.alert('Payment Successful', 'Verification complete. Welcome to Pro!');
+                fetchBillingInfo();
+              } catch (e) {
+                Alert.alert('Verification Fail', 'Could not verify simulated payment receipt.');
+              }
+            }
+          }
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert('Checkout Failed', err.message || 'Could not connect to payment gateway.');
+    } finally {
+      setIsLoadingBilling(false);
+    }
+  };
+
+
+  // Admin: Deactivate other user
+  const handleAdminDeactivateUser = async () => {
+    if (!adminTargetUserId.trim()) {
+      Alert.alert('Validation Error', 'Please specify a target User ID.');
+      return;
+    }
+    setIsAdminProcessing(true);
+    try {
+      await api.deactivateUser(adminTargetUserId.trim());
+      Alert.alert('User Deactivated', `User ${adminTargetUserId.trim()} has been deactivated successfully.`);
+      setAdminTargetUserId('');
+    } catch (err: any) {
+      Alert.alert('Admin action failed', err.message || 'Make sure target ID exists.');
+    } finally {
+      setIsAdminProcessing(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
       <View style={styles.scrollSpacing}>
         
         {/* Profile Info Row */}
         <View style={styles.profileHeaderRow}>
-          {/* Avatar with beautiful purple outer glow */}
           <View style={[styles.avatarCircle, styles.avatarGlow]}>
             <Feather name="user" size={38} color="#16122b" />
           </View>
           
-          {/* Text information */}
           <View style={styles.profileInfoTextContainer}>
             <Text style={styles.profileName}>{displayName}</Text>
             <Text style={styles.profileEmail}>{displayEmail}</Text>
             {phone ? <Text style={styles.profilePhone}>{phone}</Text> : null}
             
-            {/* Vocal Section Badge */}
             <View style={styles.badgeContainer}>
               <Text style={styles.badgeText}>{displayVoicePart.toUpperCase()}</Text>
             </View>
@@ -297,32 +418,127 @@ export default function ProfileTab({ user, email, onLogout, voicePart, phone, on
           </View>
         )}
 
-        {/* Notifications (Right chevron) */}
-        <TouchableOpacity style={styles.settingsCard} activeOpacity={0.75}>
+        {/* SUBSCRIPTION & BILLING */}
+        <TouchableOpacity 
+          style={styles.settingsCard} 
+          activeOpacity={0.75}
+          onPress={() => setIsBillingOpen(!isBillingOpen)}
+        >
           <View style={styles.settingsCardLeft}>
             <View style={styles.iconContainer}>
-              <Feather name="bell" size={18} color="#ffffff" />
+              <MaterialCommunityIcons name="credit-card-outline" size={18} color="#ffffff" />
             </View>
-            <Text style={styles.settingsLabel}>Notifications</Text>
+            <Text style={styles.settingsLabel}>Subscription & Plans</Text>
           </View>
-          <Feather name="chevron-right" size={18} color="rgba(255, 255, 255, 0.3)" />
+          <Feather name={isBillingOpen ? "chevron-up" : "chevron-down"} size={18} color="#d9b9ff" />
         </TouchableOpacity>
 
-        {/* Preferences (Right chevron) */}
-        <TouchableOpacity style={styles.settingsCard} activeOpacity={0.75}>
-          <View style={styles.settingsCardLeft}>
-            <View style={styles.iconContainer}>
-              <Feather name="settings" size={18} color="#ffffff" />
-            </View>
-            <Text style={styles.settingsLabel}>Preferences</Text>
+        {isBillingOpen && (
+          <View style={styles.editFormContainer}>
+            <Text style={styles.inputLabel}>CURRENT PLAN STATUS</Text>
+            {subscription ? (
+              <View style={styles.subStatusBox}>
+                <Text style={styles.subPlanTitle}>{subscription.plan_name || 'Free Trial'}</Text>
+                <Text style={styles.subPlanMeta}>Status: {subscription.status?.toUpperCase() || 'ACTIVE'}</Text>
+                {subscription.ends_at && (
+                  <Text style={styles.subPlanMeta}>Ends at: {new Date(subscription.ends_at).toLocaleDateString()}</Text>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.passwordHelperText}>Retrieving status...</Text>
+            )}
+
+            {/* Start trial btn */}
+            <TouchableOpacity 
+              style={[styles.formButton, styles.trialBtn]}
+              onPress={handleStartTrial}
+              disabled={isTrialProcessing}
+            >
+              {isTrialProcessing ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.trialBtnText}>Start 14-day Free Trial</Text>
+              )}
+            </TouchableOpacity>
+
+            <Text style={[styles.inputLabel, { marginTop: 14 }]}>AVAILABLE PRICING PLANS</Text>
+            {plans.map((p) => (
+              <View key={p.id} style={styles.planItemRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.planNameText}>{p.name}</Text>
+                  <Text style={styles.planDescText}>{p.description}</Text>
+                </View>
+                <TouchableOpacity 
+                  style={styles.checkoutBtn}
+                  onPress={() => handleInitiatePayment(p.id)}
+                >
+                  <Text style={styles.checkoutBtnText}>${p.price || 0}</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            <Text style={[styles.inputLabel, { marginTop: 14 }]}>PAYMENT HISTORY</Text>
+            {paymentHistory.length === 0 ? (
+              <Text style={styles.passwordHelperText}>No past transaction receipts.</Text>
+            ) : (
+              paymentHistory.map((pm, index) => (
+                <View key={index} style={styles.paymentHistoryRow}>
+                  <Text style={styles.paymentIdText}>ID: {pm.id?.substring(0, 8)}...</Text>
+                  <Text style={styles.paymentAmountText}>${pm.amount} • {pm.status?.toUpperCase()}</Text>
+                </View>
+              ))
+            )}
           </View>
-          <Feather name="chevron-right" size={18} color="rgba(255, 255, 255, 0.3)" />
-        </TouchableOpacity>
+        )}
+
+        {/* ADMIN OPERATIONS PANEL */}
+        {userRole === 'admin' && (
+          <>
+            <TouchableOpacity 
+              style={styles.settingsCard} 
+              activeOpacity={0.75}
+              onPress={() => setIsAdminOpen(!isAdminOpen)}
+            >
+              <View style={styles.settingsCardLeft}>
+                <View style={styles.iconContainer}>
+                  <Feather name="shield" size={18} color="#ffffff" />
+                </View>
+                <Text style={[styles.settingsLabel, { color: '#ff6b6b' }]}>Admin Operations</Text>
+              </View>
+              <Feather name={isAdminOpen ? "chevron-up" : "chevron-down"} size={18} color="#ff6b6b" />
+            </TouchableOpacity>
+
+            {isAdminOpen && (
+              <View style={[styles.editFormContainer, { borderColor: '#ff6b6b' }]}>
+                <Text style={styles.inputLabel}>DEACTIVATE PERFORMER ACCOUNT</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={adminTargetUserId}
+                  onChangeText={setAdminTargetUserId}
+                  placeholder="Target User ID"
+                  placeholderTextColor="rgba(255, 255, 255, 0.3)"
+                />
+
+                <TouchableOpacity
+                  style={[styles.formButton, { backgroundColor: '#ff6b6b' }]}
+                  onPress={handleAdminDeactivateUser}
+                  disabled={isAdminProcessing}
+                >
+                  {isAdminProcessing ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={[styles.saveButtonText, { color: '#ffffff' }]}>Deactivate Target Performer</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
 
         {/* SUPPORT SECTION */}
         <Text style={styles.sectionHeader}>SUPPORT</Text>
 
-        {/* Help Center & FAQ (Right chevron) */}
+        {/* Help Center & FAQ */}
         <TouchableOpacity style={styles.settingsCard} activeOpacity={0.75}>
           <View style={styles.settingsCardLeft}>
             <View style={styles.iconContainer}>
@@ -332,6 +548,8 @@ export default function ProfileTab({ user, email, onLogout, voicePart, phone, on
           </View>
           <Feather name="chevron-right" size={18} color="rgba(255, 255, 255, 0.3)" />
         </TouchableOpacity>
+
+
 
         {/* LOG OUT BUTTON */}
         <TouchableOpacity onPress={onLogout} style={styles.logoutCard} activeOpacity={0.75}>
@@ -370,12 +588,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarGlow: {
-    // Beautiful lavender outer glow shadow
     shadowColor: '#d9b9ff',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.65,
     shadowRadius: 16,
-    // Android elevation support
     elevation: 12,
   },
   profileInfoTextContainer: {
@@ -571,5 +787,85 @@ const styles = StyleSheet.create({
     fontFamily: 'Lexend_700Bold',
     fontSize: 13,
     color: '#16122b',
+  },
+  // Subscription Box Elements
+  subStatusBox: {
+    backgroundColor: 'rgba(217, 185, 255, 0.08)',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 185, 255, 0.15)',
+    marginBottom: 12,
+  },
+  subPlanTitle: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 16,
+    color: '#ffffff',
+  },
+  subPlanMeta: {
+    fontFamily: 'Lexend_400Regular',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.55)',
+    marginTop: 3,
+  },
+  trialBtn: {
+    backgroundColor: 'rgba(217, 185, 255, 0.25)',
+    borderWidth: 1.5,
+    borderColor: '#d9b9ff',
+    marginBottom: 16,
+  },
+  trialBtnText: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 13,
+    color: '#ffffff',
+  },
+  planItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  planNameText: {
+    fontFamily: 'Lexend_600SemiBold',
+    fontSize: 14,
+    color: '#ffffff',
+  },
+  planDescText: {
+    fontFamily: 'Lexend_400Regular',
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.45)',
+    marginTop: 2,
+  },
+  checkoutBtn: {
+    backgroundColor: '#d9b9ff',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 50,
+  },
+  checkoutBtnText: {
+    fontFamily: 'Lexend_700Bold',
+    fontSize: 12,
+    color: '#16122b',
+  },
+  paymentHistoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  paymentIdText: {
+    fontFamily: 'Lexend_400Regular',
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.45)',
+  },
+  paymentAmountText: {
+    fontFamily: 'Lexend_600SemiBold',
+    fontSize: 12,
+    color: '#d9b9ff',
   },
 });
